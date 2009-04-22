@@ -1,3 +1,11 @@
+/*
+ * NonNull Runtime Checking for Methods
+ * 
+ * 2009 by Mattias Ulbrich
+ * 
+ * published under GPL.
+ */
+
 package nonnull;
 
 import org.apache.bcel.Constants;
@@ -10,6 +18,7 @@ import org.apache.bcel.classfile.JavaClass;
 import org.apache.bcel.classfile.Method;
 import org.apache.bcel.classfile.ParameterAnnotationEntry;
 import org.apache.bcel.classfile.ParameterAnnotations;
+import org.apache.bcel.classfile.StackMapTable;
 import org.apache.bcel.generic.ARETURN;
 import org.apache.bcel.generic.ATHROW;
 import org.apache.bcel.generic.ClassGen;
@@ -21,21 +30,70 @@ import org.apache.bcel.generic.MethodGen;
 import org.apache.bcel.generic.ObjectType;
 import org.apache.bcel.generic.Type;
 
+/**
+ * The Class NonNullModifier does the actual patching.
+ * 
+ * It uses BCEL methods to:
+ * <ol>
+ * <li>analyse the annotations on methods and method parameters
+ * <li>insert check code on method entries and return
+ * </ol>
+ * 
+ */
 public class NonNullModifier {
 	
+	/**
+	 * The type string describing the classname of the annotation
+	 */
 	private static final String NON_NULL_TYPEREF = "Lnonnull/NonNull;";
+    
+    /**
+	 * The object type of the error that is to be created
+	 */
     private static final ObjectType EXCEPTION_CLASS = new ObjectType("nonnull/NonNullError");
+	
+	/**
+	 * The parameter signature of the error constructor used for parameter
+	 * failures.
+	 */
 	private static final Type[] PARAMETER_INIT_SIG = { Type.STRING, Type.STRING, Type.INT };
+	
+	/**
+	 * The parameter signature of the error constructor used for return
+	 * failures.
+	 */
 	private static final Type[] RETURN_INIT_SIG = { Type.STRING, Type.STRING};
+	
+	/**
+	 * The jclass stores the BCEL information of the original class
+	 */
 	private JavaClass jclass;
+	
+	/**
+	 * The class generator that is used to manipulate jclass
+	 */
 	private ClassGen classGen;
 
-	public NonNullModifier(JavaClass jclass) {
+	/**
+	 * Instantiates a new non null modifier.
+	 * 
+	 * @param jclass
+	 *            the class to be patched
+	 */
+	public NonNullModifier(@NonNull JavaClass jclass) {
 		this.jclass = jclass;
 	}
 	
 	
-	public JavaClass process() {
+	/**
+	 * Patch the class.
+	 * 
+	 * The result is a copy of {@link #jclass} with the desired runtime checks
+	 * included.
+	 * 
+	 * @return a newly created JavaClass
+	 */
+	public @NonNull JavaClass process() {
 		
 		classGen = new ClassGen(jclass);
 		
@@ -48,13 +106,11 @@ public class NonNullModifier {
 		return classGen.getJavaClass();
 	}
 
-	/**
-	 * @param args
-	 * @throws Exception 
-	 * @throws ClassFormatException 
+	/*
+	 * For test reasons only
 	 */
 	public static void main(String[] args) throws ClassFormatException, Exception {
-		JavaClass jclass = new ClassParser("bin/TestOnly.class").parse();
+		JavaClass jclass = new ClassParser("bin/nonnull/NonNullPatch.class").parse();
 		
 		NonNullModifier main = new NonNullModifier(jclass);
 		
@@ -66,13 +122,29 @@ public class NonNullModifier {
 		for(Method m : jclass2.getMethods()) {
 			System.out.println(m);
 			System.out.println(m.getCode());
+			for(Attribute a : m.getCode().getAttributes()) {
+				System.out.println(a.getClass());
+			}
 		}
 	}
 	
-	public void doMethod(Method method) {
+	/**
+	 * Process one method.
+	 * 
+	 * <ol>
+	 * <li>check the annotations on the method (store in nonNullReturn)
+	 * <li>check the annotations on the parameters (store in nonNullParams)
+	 * <li>if there is some annotation create a {@link MethodGen}
+	 * <li>add the desired checks
+	 * </ol>
+	 * 
+	 * @param method
+	 *            the method to patch
+	 */
+	private void doMethod(@NonNull Method method) {
 		
-		boolean methodNNReturn = false;
-		boolean methodNNParam[] = new boolean[0];
+		boolean nonNullReturn = false;
+		boolean nonNullParam[] = new boolean[0];
 		boolean someNN = false;
 		
 		//
@@ -80,18 +152,18 @@ public class NonNullModifier {
 		for (Attribute attr : method.getAttributes()) {
 			if (attr instanceof Annotations) {
 				Annotations annotations = (Annotations) attr;
-				methodNNReturn = hasNonNullAnnotation(annotations.getAnnotationEntries());
-				someNN |= methodNNReturn;
+				nonNullReturn = hasNonNullAnnotation(annotations.getAnnotationEntries());
+				someNN |= nonNullReturn;
 			}
 			
 			if (attr instanceof ParameterAnnotations) {
 				ParameterAnnotations annotations = (ParameterAnnotations) attr;
 				ParameterAnnotationEntry[] entries = annotations.getParameterAnnotationEntries();
 				
-				methodNNParam = new boolean[entries.length];
-				for (int i = 0; i < methodNNParam.length; i++) {
+				nonNullParam = new boolean[entries.length];
+				for (int i = 0; i < nonNullParam.length; i++) {
 					boolean nonNullann = hasNonNullAnnotation(entries[i].getAnnotationEntries());
-					methodNNParam[i] = nonNullann;
+					nonNullParam[i] = nonNullann;
 					someNN |= nonNullann;
 				}
 			}
@@ -105,25 +177,46 @@ public class NonNullModifier {
 			MethodGen mg = new MethodGen(method, jclass.getClassName(), classGen.getConstantPool());
 			InstructionFactory instFact = new InstructionFactory(classGen);
 			
-			if(methodNNReturn) {
+			if(nonNullReturn) {
 			    addReturnCheck(mg, instFact);
 			}
 			
-			for (int i = methodNNParam.length - 1;  i >= 0; i--) {
-			    if(methodNNParam[i]) {
+			for (int i = nonNullParam.length - 1;  i >= 0; i--) {
+			    if(nonNullParam[i]) {
 			        addParameterCheck(mg, instFact, i);
 			    }
             }
 			
 			mg.setMaxLocals();
 			mg.setMaxStack();
+			removeStackMap(mg);
 			classGen.replaceMethod(method, mg.getMethod());
 			
 		} 
 		
 	}
 	
-	private void addParameterCheck(MethodGen mg, InstructionFactory instFact, int parameter) {
+
+	/**
+	 * Adds a parameter check to a {@link MethodGen}.
+	 * 
+	 * The code is inserted at the beginning of the method and corresponds to
+	 * the sniplet
+	 * 
+	 * <pre>
+	 * if (arg_n == null) {
+	 * 	throw new EXCEPTION_CLASS(&quot;className&quot;, &quot;methodSignature&quot;, parameter_number);
+	 * }
+	 * </pre>
+	 * 
+	 * @param mg
+	 *            the method to be altered
+	 * @param instFact
+	 *            the according factory to be used to create instructions
+	 * @param parameter
+	 *            the number of the parameter to report failure for
+	 */
+	private void addParameterCheck(@NonNull MethodGen mg, @NonNull InstructionFactory instFact, int parameter) {
 	    
 	    Type type = mg.getArgumentType(parameter);
 	    
@@ -153,6 +246,28 @@ public class NonNullModifier {
         mg.getInstructionList().insert(ilist);
 	}
 
+	/**
+	 * Adds a return check to a {@link MethodGen}.
+	 * 
+	 * The instruction list is iterated and every object return statement
+	 * <code>return exp;</code>(areturn) is replaced corresponding to the
+	 * sniplet
+	 * 
+	 * <pre>
+	 * {
+	 *   [ReturnType] o = [exp];
+	 *   if (o == null) {
+	 * 	   throw new EXCEPTION_CLASS(&quot;className&quot;, &quot;methodSignature&quot;);
+	 *   }
+	 *   return o;
+	 * }
+	 * </pre>
+	 * 
+	 * @param mg
+	 *            the method to be altered
+	 * @param instFact
+	 *            the according factory to be used to create instructions
+	 */
 	private void addReturnCheck(MethodGen mg, InstructionFactory instFact) {
 
 	    Type type = mg.getReturnType();
@@ -185,8 +300,31 @@ public class NonNullModifier {
 	        
 	    }
 	}
+	
+	/**
+	 * remove any stack map attribute if present.
+	 * 
+	 * It is probably been corrupted by our changes.
+	 * @param mg
+	 */
+	private void removeStackMap(@NonNull MethodGen mg) {
+		for(Attribute attr : mg.getCodeAttributes()) {
+			if (attr instanceof StackMapTable) {
+				mg.removeCodeAttribute(attr);
+			}
+		}
+	}
 
-	private boolean isObjectType(Type type) {
+	/**
+	 * Checks if a type is an object type. This is the case iff it is not a
+	 * primitive type or void.
+	 * 
+	 * @param type
+	 *            the type
+	 * 
+	 * @return true iff is object type
+	 */
+	private boolean isObjectType(@NonNull Type type) {
 		
 		switch (type.getType()) {
 		case Constants.T_BOOLEAN:
@@ -206,7 +344,15 @@ public class NonNullModifier {
 	}
 
 
-	private boolean hasNonNullAnnotation(AnnotationEntry[] entries) {
+	/**
+	 * Checks for NonNull annotation.
+	 * 
+	 * @param entries
+	 *            the entries
+	 * 
+	 * @return true, if successful
+	 */
+	private boolean hasNonNullAnnotation(@NonNull AnnotationEntry[] entries) {
 		for (AnnotationEntry ann : entries) 	{
 			if(NON_NULL_TYPEREF.equals(ann.getAnnotationType()))
 				return true;
