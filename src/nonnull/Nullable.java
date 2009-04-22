@@ -13,12 +13,10 @@ import java.lang.annotation.RetentionPolicy;
 
 
 /**
- * The annotation <code>NonNull</code> can be used to annotate methods or
- * their parameters (of reference type) to denote that the must not be null.
- * 
- * If a class is annotated NonNull, all parameters and returns to all methods 
- * (and constructors!) are considered annotated NonNull. You can declare 
- * exceptions to this default using the {@link Nullable} annotation.
+ * The annotation <code>Nullable</code> can be used to annotate methods or
+ * their parameters (of reference type) to denote that the *may* be null.
+ * If a class is annotated NonNull, this annotation can be used to declare
+ * exception of this default behaviour.
  * 
  * The annotations are documented in JavaDoc.
  * 
@@ -33,6 +31,6 @@ public
   @Documented 
   @Retention(RetentionPolicy.CLASS) 
   
-@interface NonNull {
+@interface Nullable {
 
 }

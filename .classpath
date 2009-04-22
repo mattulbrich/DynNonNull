@@ -2,6 +2,6 @@
 <classpath>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-	<classpathentry kind="con" path="org.eclipse.jdt.USER_LIBRARY/BCEL-trunk"/>
+	<classpathentry kind="lib" path="bcel.jar" sourcepath="bcel-trunk/src/main/java"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

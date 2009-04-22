@@ -43,9 +43,14 @@ import org.apache.bcel.generic.Type;
 public class NonNullModifier {
 	
 	/**
-	 * The type string describing the classname of the annotation
+	 * The type string describing the classname of the nonnull annotation
 	 */
 	private static final String NON_NULL_TYPEREF = "Lnonnull/NonNull;";
+	
+	/**
+     * The type string describing the classname of the nullable annotation
+     */
+    private static final String NULLABLE_TYPEREF = "Lnonnull/Nullable;";
     
     /**
 	 * The object type of the error that is to be created
@@ -64,6 +69,10 @@ public class NonNullModifier {
 	 */
 	private static final Type[] RETURN_INIT_SIG = { Type.STRING, Type.STRING};
 	
+	private static enum AnnotationKind {
+	    NONNULL, NULLABLE, NONE;
+	}
+	
 	/**
 	 * The jclass stores the BCEL information of the original class
 	 */
@@ -73,6 +82,13 @@ public class NonNullModifier {
 	 * The class generator that is used to manipulate jclass
 	 */
 	private ClassGen classGen;
+	
+	/**
+	 * 
+	 */
+	private boolean hasBeenAltered = false;
+
+    private AnnotationKind classAnnotation;
 
 	/**
 	 * Instantiates a new non null modifier.
@@ -97,6 +113,8 @@ public class NonNullModifier {
 		
 		classGen = new ClassGen(jclass);
 		
+		classAnnotation = getNonNullAnnotation(jclass.getAnnotationEntries());
+		System.out.println(classAnnotation);
 		Method methods[] = jclass.getMethods();
 		
 		for (Method method : methods) {
@@ -143,58 +161,63 @@ public class NonNullModifier {
 	 */
 	private void doMethod(@NonNull Method method) {
 		
-		boolean nonNullReturn = false;
-		boolean nonNullParam[] = new boolean[0];
-		boolean someNN = false;
+		AnnotationKind nonNullReturn = AnnotationKind.NONE;
+		AnnotationKind nonNullParam[] = new AnnotationKind[method.getArgumentTypes().length];
+		for (int i = 0; i < nonNullParam.length; i++) {
+            nonNullParam[i] = AnnotationKind.NONE;
+        }
 		
 		//
 		// check for NonNull annotations
 		for (Attribute attr : method.getAttributes()) {
 			if (attr instanceof Annotations) {
 				Annotations annotations = (Annotations) attr;
-				nonNullReturn = hasNonNullAnnotation(annotations.getAnnotationEntries());
-				someNN |= nonNullReturn;
+				nonNullReturn = getNonNullAnnotation(annotations.getAnnotationEntries());
 			}
 			
 			if (attr instanceof ParameterAnnotations) {
 				ParameterAnnotations annotations = (ParameterAnnotations) attr;
 				ParameterAnnotationEntry[] entries = annotations.getParameterAnnotationEntries();
 				
-				nonNullParam = new boolean[entries.length];
-				for (int i = 0; i < nonNullParam.length; i++) {
-					boolean nonNullann = hasNonNullAnnotation(entries[i].getAnnotationEntries());
+				for (int i = 0; i < entries.length; i++) {
+					AnnotationKind nonNullann = getNonNullAnnotation(entries[i].getAnnotationEntries());
 					nonNullParam[i] = nonNullann;
-					someNN |= nonNullann;
 				}
 			}
 		}
 		
-		if(someNN) {
-			
-			//
-			// copy body to new method
-			
-			MethodGen mg = new MethodGen(method, jclass.getClassName(), classGen.getConstantPool());
-			InstructionFactory instFact = new InstructionFactory(classGen);
-			
-			if(nonNullReturn) {
-			    addReturnCheck(mg, instFact);
-			}
-			
-			for (int i = nonNullParam.length - 1;  i >= 0; i--) {
-			    if(nonNullParam[i]) {
-			        addParameterCheck(mg, instFact, i);
-			    }
-            }
-			
-			mg.setMaxLocals();
-			mg.setMaxStack();
-			removeStackMap(mg);
-			classGen.replaceMethod(method, mg.getMethod());
+
+		boolean changed = false;
+
+		MethodGen mg = new MethodGen(method, jclass.getClassName(), classGen.getConstantPool());
+		InstructionFactory instFact = new InstructionFactory(classGen);
+
+		if(requiresCheck(nonNullReturn)) {
+		    addReturnCheck(mg, instFact);
+		    changed = true;
+		}
+
+		for (int i = nonNullParam.length - 1;  i >= 0; i--) {
+		    if(requiresCheck(nonNullParam[i])) {
+		        addParameterCheck(mg, instFact, i);
+		    }
+		    changed = true;
+		}
+
+		if(changed) {
+		    mg.setMaxLocals();
+		    mg.setMaxStack();
+		    removeStackMap(mg);
+		    classGen.replaceMethod(method, mg.getMethod());
+		    hasBeenAltered = true;
+		}
 			
 		} 
 		
-	}
+	private boolean requiresCheck(AnnotationKind ann) {
+        return ann == AnnotationKind.NONNULL || 
+          (classAnnotation == AnnotationKind.NONNULL && ann != AnnotationKind.NULLABLE);
+    }
 	
 
 	/**
@@ -352,12 +375,14 @@ public class NonNullModifier {
 	 * 
 	 * @return true, if successful
 	 */
-	private boolean hasNonNullAnnotation(@NonNull AnnotationEntry[] entries) {
+	private AnnotationKind getNonNullAnnotation(@NonNull AnnotationEntry[] entries) {
 		for (AnnotationEntry ann : entries) 	{
 			if(NON_NULL_TYPEREF.equals(ann.getAnnotationType()))
-				return true;
+				return AnnotationKind.NONNULL;
+			else if(NULLABLE_TYPEREF.equals(ann.getAnnotationType()))
+			    return AnnotationKind.NULLABLE;
 		}
-		return false;
+		return AnnotationKind.NONE;
 	}
 
 }
