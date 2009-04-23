@@ -78,7 +78,7 @@ public class NonNullError extends Error {
 		int sep = methodSignature.indexOf('(');
 
 		return Utility.methodSignatureToString(methodSignature.substring(sep),
-				methodSignature.substring(0, sep - 1), "");
+				methodSignature.substring(0, sep), "");
 	}
 
 	/*
