@@ -8,6 +8,8 @@
 
 package nonnull;
 
+import java.util.Collections;
+
 import org.apache.bcel.Constants;
 import org.apache.bcel.classfile.AnnotationEntry;
 import org.apache.bcel.classfile.Annotations;
@@ -21,6 +23,7 @@ import org.apache.bcel.classfile.ParameterAnnotations;
 import org.apache.bcel.classfile.StackMapTable;
 import org.apache.bcel.generic.ARETURN;
 import org.apache.bcel.generic.ATHROW;
+import org.apache.bcel.generic.AnnotationEntryGen;
 import org.apache.bcel.generic.ClassGen;
 import org.apache.bcel.generic.Instruction;
 import org.apache.bcel.generic.InstructionFactory;
@@ -51,6 +54,16 @@ public class NonNullModifier {
      * The type string describing the classname of the nullable annotation
      */
     private static final String NULLABLE_TYPEREF = "Lnonnull/Nullable;";
+    
+    /**
+     * The type string describing the classname of the patched annotation
+     */
+    private static final ObjectType PATCHED_CLASS = new ObjectType("nonnull/NonNullPatched");
+    
+    /**
+     * The type string describing the classname of the patched annotation
+     */
+    private static final String PATCHED_TYPEREF = "Lnonnull/NonNullPatched;";
 
     /**
      * The object type of the error that is to be created
@@ -106,8 +119,7 @@ public class NonNullModifier {
      * @param jclass
      *                the class to be patched
      */
-    public NonNullModifier(@NonNull
-    JavaClass jclass) {
+    public NonNullModifier(@NonNull JavaClass jclass) {
         this.jclass = jclass;
     }
 
@@ -119,13 +131,12 @@ public class NonNullModifier {
      * 
      * @return a newly created JavaClass
      */
-    public @NonNull
-    JavaClass process() {
+    public @NonNull JavaClass process() {
 
         classGen = new ClassGen(jclass);
 
         classAnnotation = getNonNullAnnotation(jclass.getAnnotationEntries());
-
+        
         Method methods[] = jclass.getMethods();
 
         for (Method method : methods) {
@@ -137,8 +148,39 @@ public class NonNullModifier {
                 e.printStackTrace();
             }
         }
+        
+        if(hasBeenAltered()) {
+            makePatchAnnotation();
+        }
 
         return classGen.getJavaClass();
+    }
+
+    /**
+     * if the class file has been patched, annotate this with an annotation to
+     * the class file.
+     */
+    private void makePatchAnnotation() {
+        AnnotationEntryGen ag = new AnnotationEntryGen(PATCHED_CLASS, 
+                Collections.EMPTY_LIST, false, classGen.getConstantPool());
+        classGen.addAnnotationEntry(ag);
+    }
+
+    /**
+     * check the annotations of the class to find whether the class file has
+     * alredy been patched. The marker annotation for this is
+     * {@link #PATCHED_TYPEREF}.
+     * 
+     * @return true iff this class has already been patched.
+     */
+    public boolean alreadyPatched() {
+        
+        AnnotationEntry[] annotations = jclass.getAnnotationEntries();
+        for (AnnotationEntry annotationEntry : annotations) {
+            if(PATCHED_TYPEREF.equals(annotationEntry.getAnnotationType()))
+                return true;
+        }
+        return false;
     }
 
     /*
@@ -152,6 +194,9 @@ public class NonNullModifier {
         NonNullModifier main = new NonNullModifier(jclass);
 
         System.out.println(System.getProperties());
+        
+        if(main.alreadyPatched())
+            System.out.println("already patched");
 
         JavaClass jclass2 = main.process();
         System.out.println(jclass2);

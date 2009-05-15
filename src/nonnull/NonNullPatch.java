@@ -50,11 +50,21 @@ public class NonNullPatch {
             return;
         }
 
-        System.out.println("Patching " + from + " to " + to);
+        System.out.print("Patching " + from + " to ");
+        if(from.equals(to))
+            System.out.println("itself");
+        else
+            System.out.println(to);
 
         JavaClass jclass = new ClassParser(fromName).parse();
 
         NonNullModifier mod = new NonNullModifier(jclass);
+        
+        if(mod.alreadyPatched()) {
+            System.out.println("   ... already patched");
+            copyFile(from, to);
+            return;
+        }
 
         JavaClass modifiedJclass = mod.process();
 
