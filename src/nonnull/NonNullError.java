@@ -8,6 +8,8 @@
 
 package nonnull;
 
+import java.util.Collection;
+
 import org.apache.bcel.classfile.Utility;
 
 /**
@@ -23,25 +25,14 @@ public class NonNullError extends Error {
 	 */
 	private static final long serialVersionUID = -6980596231380743926L;
 
-	/**
-	 * The signature of the method which failed its test.
-	 * The format is
-	 * <pre>
-	 *    methodName(Ljava.lang.Object;I)B
-	 * </pre>
-	 * for a method <code>byte methodName(java.lang.Object, int)</code>
-	 */
-	private String methodSignature;
-
-	/**
-	 * The name of the class in which the failing method exists. 
-	 */
-	private String className;
+	private StackTraceElement invokingContext;
 
 	/**
 	 * The number of the method parameter that fails, -1 if return failed.
 	 */
-	private int parameter = -1;
+	private int failingParameter = -1;
+	
+	private int failingIndex = -1;
 
 	/**
 	 * Instantiates an error for a failed return check.
@@ -51,52 +42,90 @@ public class NonNullError extends Error {
 	 * @param methodSignature
 	 *            the method signature
 	 */
-	public NonNullError(String className, String methodSignature) {
-		this.className = className;
-		this.methodSignature = methodSignature;
-	}
+	private NonNullError(int failingParameter, int failingIndex) {
+	    super();
+	    extractInvokingContext();
+	    this.failingParameter = failingParameter;
+	    this.failingIndex = failingIndex;
+    }
 
-	/**
-	 * Instantiates an error for a failed parameter check.
-	 * 
-	 * @param className
-	 *            the class name
-	 * @param methodSignature
-	 *            the method signature
-	 * @param parameter
-	 *            the parameter number (>=0)
-	 */
-	public NonNullError(String className, String methodSignature, int parameter) {
-		assert parameter >= 0;
-		this.className = className;
-		this.methodSignature = methodSignature;
-		this.parameter = parameter;
-	}
+    private void extractInvokingContext() {
+        int i = 0;
+	    StackTraceElement[] stackTrace = getStackTrace();
+        String myClassName = getClass().getName();
+        
+        do {
+	        invokingContext = stackTrace[i];
+	        i++;
+	    } while(i < stackTrace.length && 
+	            myClassName.equals(invokingContext.getClassName()));
+        
+    }
 
-	private String getMethod() {
+    public NonNullError(int parameterNumber) {
+        this(parameterNumber, -1);
+    }
 
-		int sep = methodSignature.indexOf('(');
-
-		return Utility.methodSignatureToString(methodSignature.substring(sep),
-				methodSignature.substring(0, sep), "");
-	}
-
-	/*
+    /*
 	 * (non-Javadoc)
 	 * 
 	 * @see java.lang.Throwable#getMessage()
 	 */
 	@Override
 	public String getMessage() {
-		String retval = "Unallowed null reference in class " + className
-				+ ", method " + getMethod();
-		if (parameter >= 0) {
-			retval += " in parameter " + parameter;
-		} else {
-			retval += " in return statement";
-		}
+	    StringBuilder retval = new StringBuilder();
+		retval.append("Unallowed null reference in class ")
+		    .append(invokingContext.getClassName())
+		    .append(", method ")
+		    .append(invokingContext.getMethodName());
+		
+		if (failingParameter >= 0) {
+            retval.append(" in parameter ").append(failingParameter);
+        } else {
+            retval.append(" in return statement");
+        }
 
-		return retval;
+        if (failingIndex >= 0) {
+            retval.append(", at index ").append(failingIndex).append(
+                    " while checking for elementwise nonnull");
+        }
+
+		retval.append(".");
+		return retval.toString();
+	}
+	
+	public static void checkNonNull(Object ref, int parameterNumber, boolean deepChecking) {
+	    
+	    if(ref == null) {
+	        throw new NonNullError(parameterNumber);
+	    }
+
+	    if(!deepChecking)
+	        return;
+
+	    // TODO have some kind of plugin? does that make sense?
+	    
+	    if (ref instanceof Object[]) {
+	        Object[] array = (Object[]) ref;
+	        for (int i = 0; i < array.length; i++) {
+	            if(array[i] == null)
+	                throw new NonNullError(parameterNumber, i);
+	        }
+	    }
+
+	    if (ref instanceof Collection<?>) {
+	        Collection<?> coll = (Collection<?>) ref;
+	        int i = 0;
+	        for (Object object : coll) {
+	            if(object == null)
+	                throw new NonNullError(parameterNumber, i);
+	            i++;
+	        }
+	    }
+	}
+	
+	public static void checkNonNull(Object ref, boolean deepChecking) {
+	   checkNonNull(ref, -1, deepChecking);
 	}
 
 }

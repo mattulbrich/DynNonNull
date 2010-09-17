@@ -22,13 +22,13 @@ import org.apache.bcel.classfile.ParameterAnnotationEntry;
 import org.apache.bcel.classfile.ParameterAnnotations;
 import org.apache.bcel.classfile.StackMapTable;
 import org.apache.bcel.generic.ARETURN;
-import org.apache.bcel.generic.ATHROW;
 import org.apache.bcel.generic.AnnotationEntryGen;
 import org.apache.bcel.generic.ClassGen;
 import org.apache.bcel.generic.Instruction;
 import org.apache.bcel.generic.InstructionFactory;
 import org.apache.bcel.generic.InstructionHandle;
 import org.apache.bcel.generic.InstructionList;
+import org.apache.bcel.generic.LineNumberGen;
 import org.apache.bcel.generic.MethodGen;
 import org.apache.bcel.generic.ObjectType;
 import org.apache.bcel.generic.Type;
@@ -56,6 +56,11 @@ public class NonNullModifier {
     private static final String NULLABLE_TYPEREF = "Lnonnull/Nullable;";
     
     /**
+     * The type string describing the classname of the deep nonnull annotation
+     */
+    private static final String DEEP_NON_NULL_TYPEREF = "Lnonnull/DeepNonNull;";
+    
+    /**
      * The type string describing the classname of the patched annotation
      */
     private static final ObjectType PATCHED_CLASS = new ObjectType("nonnull/NonNullPatched");
@@ -75,25 +80,26 @@ public class NonNullModifier {
      * The parameter signature of the error constructor used for parameter
      * failures.
      */
-    private static final Type[] PARAMETER_INIT_SIG = { Type.STRING,
-            Type.STRING, Type.INT };
+    private static final Type[] PARAMETER_CHECKNONNULL_SIG = { Type.OBJECT,
+            Type.INT, Type.BOOLEAN };
 
     /**
      * The parameter signature of the error constructor used for return
      * failures.
      */
-    private static final Type[] RETURN_INIT_SIG = { Type.STRING, Type.STRING };
+    private static final Type[] RETURN_CHECKNONNULL_SIG = { Type.OBJECT, Type.BOOLEAN };
 
     /**
      * When looking for an annotation there are 3 possible states:
      * <ul>
      * <li>NONNULL: NonNull annotation found
      * <li>NULLABLE: Nullable annotation found
+     * <li>DEEP_NONNULL: DeepNonNull annotation found, implies NonNull
      * <li>NONE: no annotation (of this kind) found
      * </ul>
      */
     private static enum AnnotationKind {
-        NONNULL, NULLABLE, NONE;
+        NONNULL, NULLABLE, DEEP_NONNULL, NONE;
     }
 
     /**
@@ -111,6 +117,9 @@ public class NonNullModifier {
      */
     private boolean hasBeenAltered = false;
 
+    /**
+     * the annotation attached to the class
+     */
     private AnnotationKind classAnnotation;
 
     /**
@@ -188,8 +197,10 @@ public class NonNullModifier {
      */
     public static void main(String[] args) throws ClassFormatException,
             Exception {
-        JavaClass jclass = new ClassParser("bin/nonnull/NonNullPatch.class")
-                .parse();
+        
+        String arg = args.length == 0 ? "bin/nonnull/NonNullPatch.class" : args[0];
+        
+        JavaClass jclass = new ClassParser(arg).parse();
 
         NonNullModifier main = new NonNullModifier(jclass);
 
@@ -228,14 +239,17 @@ public class NonNullModifier {
         int arity = method.getArgumentTypes().length;
 
         boolean returnCheck = false;
+        boolean returnDeepCheck = false;
         boolean paramCheck[] = new boolean[arity];
+        boolean paramDeepCheck[] = new boolean[arity];
         
-        if(classAnnotation == AnnotationKind.NONNULL) {
-            returnCheck = true;
-            for (int i = 0; i < paramCheck.length; i++) {
-                paramCheck[i] = true;
-            }
-        }
+        // needed?
+//        if(classAnnotation == AnnotationKind.NONNULL) {
+//            returnCheck = true;
+//            for (int i = 0; i < paramCheck.length; i++) {
+//                paramCheck[i] = true;
+//            }
+//        }
 
         //
         // check for NonNull annotations
@@ -245,6 +259,7 @@ public class NonNullModifier {
                 AnnotationKind nonNullReturn = getNonNullAnnotation(annotations
                         .getAnnotationEntries());
                 returnCheck = requiresCheck(nonNullReturn);
+                returnDeepCheck = requiresElementsCheck(nonNullReturn);
             }
 
             if (attr instanceof ParameterAnnotations) {
@@ -256,6 +271,7 @@ public class NonNullModifier {
                     AnnotationKind nonNullann = getNonNullAnnotation(entries[i]
                             .getAnnotationEntries());
                     paramCheck[i] = requiresCheck(nonNullann);
+                    paramDeepCheck[i] = requiresElementsCheck(nonNullann);
                 }
             }
         }
@@ -271,12 +287,28 @@ public class NonNullModifier {
             InstructionFactory instFact = new InstructionFactory(classGen);
 
             if (returnCheck) {
-                addReturnCheck(mg, instFact);
+                addReturnCheck(mg, instFact, returnDeepCheck);
             }
-
-            for (int i = paramCheck.length - 1; i >= 0; i--) {
-                if (paramCheck[i]) {
-                    addParameterCheck(mg, instFact, i);
+            
+//            for (int i = paramCheck.length - 1; i >= 0; i--) {
+//                if (paramCheck[i]) {
+//                    addParameterCheck(mg, instFact, i, offset, paramDeepCheck[i]);
+//                }
+//            }
+            
+            int offset = mg.isStatic() ? 0 : 1;
+            for(int i = 0; i < paramCheck.length; i++) {
+                if(paramCheck[i]) {
+                    addParameterCheck(mg, instFact, i, offset, paramDeepCheck[i]);
+                }
+                
+                // advance the pointer by the length of the argument.
+                // (long and double are 64 bit wide)
+                Type argTy = mg.getArgumentType(i);
+                if(argTy == Type.LONG || argTy == Type.DOUBLE) {
+                    offset += 2;
+                } else {
+                    offset ++;
                 }
             }
 
@@ -302,21 +334,47 @@ public class NonNullModifier {
     /**
      * given the annotation state of an element check whether a check should be
      * inserted.
-     * 
+     *  
      * This is the case if either:
      * <ol>
      * <li>There is a NonNull annotation on the object
-     * <li>or there is a NonNull annotation on the class and no Nullable
+     * <li>There is a NonNullElements annotation on the object
+     * <li>or there is a NonNull annotation on the class and no
      * annotation on the object
+     * <li>or there is a NonNullElements annotation on the class and no
+     * annotation on the object
+     * </ol>
      * 
+     * {@link DeepNonNull} implies {@link NonNull}.
      * @param ann
      *                the annotation to check
      * @return true if a check is to be required for the element with the given
      *         annotation
      */
     private boolean requiresCheck(AnnotationKind ann) {
-        return ann == AnnotationKind.NONNULL
-                || (classAnnotation == AnnotationKind.NONNULL && ann != AnnotationKind.NULLABLE);
+        return ann == AnnotationKind.NONNULL || ann == AnnotationKind.DEEP_NONNULL ||
+               ann != AnnotationKind.NONE && (classAnnotation == AnnotationKind.NONNULL ||
+                       classAnnotation == AnnotationKind.DEEP_NONNULL);
+    }
+    
+    /**
+     * given the annotation state of an element check whether an
+     * array-per-element check should be inserted.
+     * 
+     * This is the case if either:
+     * <ol>
+     * <li>There is a NonNullElements annotation on the object
+     * <li>or there is a NonNullElements annotation on the class and no
+     * annotation on the object
+     * 
+     * @param ann
+     *            the annotation to check
+     * @return true if a check is to be required for the element with the given
+     *         annotation
+     */
+    private boolean requiresElementsCheck(AnnotationKind ann) {
+        return ann == AnnotationKind.DEEP_NONNULL || 
+                (classAnnotation == AnnotationKind.DEEP_NONNULL && ann == AnnotationKind.NONE);
     }
 
     /**
@@ -326,9 +384,7 @@ public class NonNullModifier {
      * the sniplet
      * 
      * <pre>
-     * if (arg_n == null) {
-     *     throw new EXCEPTION_CLASS(&quot;className&quot;, &quot;methodSignature&quot;, parameter_number);
-     * }
+     *     NonNullError.checkNonNull(parameter, parameter_number, deepChecking);
      * </pre>
      * 
      * @param mg
@@ -337,8 +393,11 @@ public class NonNullModifier {
      *                the according factory to be used to create instructions
      * @param parameter
      *                the number of the parameter to report failure for
+     * @param deep
+     *                this parameter is passed to the check method as a literal parameter
      */
-    private void addParameterCheck(@NonNull MethodGen mg, @NonNull InstructionFactory instFact, int parameter) {
+    private void addParameterCheck(@NonNull MethodGen mg, @NonNull InstructionFactory instFact,
+            int parameter, int offset, boolean deep) {
 
         Type type = mg.getArgumentType(parameter);
 
@@ -348,27 +407,24 @@ public class NonNullModifier {
         if (mg.isAbstract())
             return;
 
-        int thisOffset = mg.isStatic() ? 0 : 1;
-
         InstructionList ilist = new InstructionList();
-        InstructionHandle followingInstrHandle = mg.getInstructionList()
-                .getStart();
 
         ilist.append(InstructionFactory
-                .createLoad(type, parameter + thisOffset));
-        ilist.append(InstructionFactory.createBranchInstruction(
-                Constants.IFNONNULL, followingInstrHandle));
-        ilist.append(instFact.createNew(EXCEPTION_CLASS));
-        ilist.append(InstructionFactory.createDup(1));
-        ilist.append(instFact.createConstant(jclass.getClassName()));
-        ilist.append(instFact.createConstant(mg.getName() + mg.getSignature()));
+                .createLoad(type, offset));
         ilist.append(instFact.createConstant(parameter));
+        ilist.append(instFact.createConstant(deep ? 1 : 0));
         ilist.append(instFact.createInvoke(EXCEPTION_CLASS.getClassName(),
-                "<init>", Type.VOID, PARAMETER_INIT_SIG,
-                Constants.INVOKESPECIAL));
-        ilist.append(new ATHROW());
+                "checkNonNull", Type.VOID, PARAMETER_CHECKNONNULL_SIG,
+                Constants.INVOKESTATIC));
 
         mg.getInstructionList().insert(ilist);
+
+        // adjust line numbers
+        LineNumberGen[] lineNumbers = mg.getLineNumbers();
+        if(lineNumbers != null && lineNumbers.length > 0 ) {
+            LineNumberGen first = lineNumbers[0];
+            first.setInstruction(mg.getInstructionList().getStart());
+        }
     }
 
     /**
@@ -379,21 +435,18 @@ public class NonNullModifier {
      * sniplet
      * 
      * <pre>
-     * {
-     *   [ReturnType] o = [exp];
-     *   if (o == null) {
-     * 	   throw new EXCEPTION_CLASS(&quot;className&quot;, &quot;methodSignature&quot;);
-     *   }
-     *   return o;
-     * }
+     *     NonNullError.checkNonNull(retval, deepChecking);
      * </pre>
      * 
      * @param mg
-     *                the method to be altered
+     *            the method to be altered
      * @param instFact
-     *                the according factory to be used to create instructions
+     *            the according factory to be used to create instructions
+     * @param deep
+     *            this parameter is passed to the check method as a literal
+     *            parameter
      */
-    private void addReturnCheck(MethodGen mg, InstructionFactory instFact) {
+    private void addReturnCheck(MethodGen mg, InstructionFactory instFact, boolean deep) {
 
         Type type = mg.getReturnType();
 
@@ -410,17 +463,11 @@ public class NonNullModifier {
             if (instr instanceof ARETURN) {
                 InstructionList ilist = new InstructionList();
                 ilist.append(InstructionFactory.createDup(1));
-                ilist.append(InstructionFactory.createBranchInstruction(
-                        Constants.IFNONNULL, handle));
-                ilist.append(instFact.createNew(EXCEPTION_CLASS));
-                ilist.append(InstructionFactory.createDup(1));
-                ilist.append(instFact.createConstant(jclass.getClassName()));
-                ilist.append(instFact.createConstant(mg.getName()
-                        + mg.getSignature()));
-                ilist.append(instFact.createInvoke(EXCEPTION_CLASS
-                        .getClassName(), "<init>", Type.VOID, RETURN_INIT_SIG,
-                        Constants.INVOKESPECIAL));
-                ilist.append(new ATHROW());
+                ilist.append(instFact.createConstant(deep ? 1 : 0));
+                ilist.append(instFact.createInvoke(EXCEPTION_CLASS.getClassName(), 
+                        "checkNonNull", Type.VOID, RETURN_CHECKNONNULL_SIG,
+                        Constants.INVOKESTATIC));
+                
                 mg.getInstructionList().insert(handle, ilist);
             }
 
@@ -454,8 +501,7 @@ public class NonNullModifier {
      * 
      * @return true iff is object type
      */
-    private boolean isObjectType(@NonNull
-    Type type) {
+    private boolean isObjectType(@NonNull Type type) {
 
         switch (type.getType()) {
         case Constants.T_BOOLEAN:
@@ -482,13 +528,14 @@ public class NonNullModifier {
      * 
      * @return true, if successful
      */
-    private AnnotationKind getNonNullAnnotation(@NonNull
-    AnnotationEntry[] entries) {
+    private AnnotationKind getNonNullAnnotation(@NonNull AnnotationEntry[] entries) {
         for (AnnotationEntry ann : entries) {
             if (NON_NULL_TYPEREF.equals(ann.getAnnotationType()))
                 return AnnotationKind.NONNULL;
             else if (NULLABLE_TYPEREF.equals(ann.getAnnotationType()))
                 return AnnotationKind.NULLABLE;
+            else if (DEEP_NON_NULL_TYPEREF.equals(ann.getAnnotationType()))
+                return AnnotationKind.DEEP_NONNULL;
         }
         return AnnotationKind.NONE;
     }

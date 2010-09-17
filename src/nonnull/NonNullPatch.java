@@ -112,7 +112,7 @@ public class NonNullPatch {
         File from = null;
         File target = null;
 
-        System.err.println("Patch runtime non-null checking V0.11");
+        System.err.println("Patch runtime non-null checking V0.12");
 
         switch (args.length) {
         case 1:
