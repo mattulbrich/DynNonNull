@@ -22,6 +22,7 @@ import org.apache.bcel.classfile.JavaClass;
 
   <target name="nonnull" depends="build" description="patches the class files with r/t checks">
     <java classname="nonnull.NonNullPatch">
+    <sysproperty key="verbose" value="true/false"/>
     <arg value="classes"/>
     <classpath>
       <pathelement location="nonnull.jar"/>
@@ -41,6 +42,14 @@ import org.apache.bcel.classfile.JavaClass;
  * A second argument is the target (either file or directory).
  */
 public class NonNullPatch {
+    
+    private static boolean verbose = Boolean.getBoolean("verbose");
+
+    static void out(String msg) {
+        if(verbose) {
+            System.out.println(msg);
+        }
+    }
 
     private static void patch(@NonNull File from, @NonNull File to) throws ClassFormatException, IOException {
 
@@ -50,18 +59,14 @@ public class NonNullPatch {
             return;
         }
 
-        System.out.print("Patching " + from + " to ");
-        if(from.equals(to))
-            System.out.println("itself");
-        else
-            System.out.println(to);
+        out("Patching " + from + " to " + (from.equals(to) ? "itself" : to)); 
 
         JavaClass jclass = new ClassParser(fromName).parse();
 
         NonNullModifier mod = new NonNullModifier(jclass);
         
         if(mod.alreadyPatched()) {
-            System.out.println("   ... already patched");
+            out("   ... already patched");
             copyFile(from, to);
             return;
         }
@@ -71,7 +76,7 @@ public class NonNullPatch {
         if(mod.hasBeenAltered())
             modifiedJclass.dump(to);
         else {
-            System.out.println("   ... no changes");
+            out("   ... no changes");
             copyFile(from, to);
         }
     }
@@ -112,7 +117,7 @@ public class NonNullPatch {
         File from = null;
         File target = null;
 
-        System.err.println("Patch runtime non-null checking V0.12");
+        System.err.println("Patch runtime non-null checking V0.13");
 
         switch (args.length) {
         case 1:

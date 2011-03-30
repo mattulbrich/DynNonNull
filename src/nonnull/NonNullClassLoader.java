@@ -66,10 +66,10 @@ public class NonNullClassLoader extends ClassLoader {
                     JavaClass jclass = parser.parse();
                     NonNullModifier modifier = new NonNullModifier(jclass);
                     jclass = modifier.process();
-                    for(org.apache.bcel.classfile.Method m : jclass.getMethods()) {
-                        System.out.println(m);
-                        System.out.println(m.getCode());
-                    }
+//                    for(org.apache.bcel.classfile.Method m : jclass.getMethods()) {
+//                        System.out.println(m);
+//                        System.out.println(m.getCode());
+//                    }
                     byte[] byteArray = jclass.getBytes();
                     cl = defineClass(class_name, byteArray, 0, byteArray.length);
                 } catch (Exception e) {
@@ -105,6 +105,11 @@ public class NonNullClassLoader extends ClassLoader {
 	 */
     public static void main(String[] args) throws Throwable {
         NonNullClassLoader nncl = new NonNullClassLoader(ClassLoader.getSystemClassLoader());
+        
+        if(args.length == 0) {
+            throw new IllegalArgumentException("You need to provide a classname of a class with a main method.");
+        }
+        
         String className = args[0];
         
         Object args2 = new String[args.length - 1];

@@ -17,10 +17,14 @@ import org.apache.bcel.classfile.Attribute;
 import org.apache.bcel.classfile.ClassFormatException;
 import org.apache.bcel.classfile.ClassParser;
 import org.apache.bcel.classfile.JavaClass;
+import org.apache.bcel.classfile.LocalVariable;
+import org.apache.bcel.classfile.LocalVariableTable;
+import org.apache.bcel.classfile.LocalVariableTypeTable;
 import org.apache.bcel.classfile.Method;
 import org.apache.bcel.classfile.ParameterAnnotationEntry;
 import org.apache.bcel.classfile.ParameterAnnotations;
 import org.apache.bcel.classfile.StackMapTable;
+import org.apache.bcel.classfile.Unknown;
 import org.apache.bcel.generic.ARETURN;
 import org.apache.bcel.generic.AnnotationEntryGen;
 import org.apache.bcel.generic.ClassGen;
@@ -81,7 +85,7 @@ public class NonNullModifier {
      * failures.
      */
     private static final Type[] PARAMETER_CHECKNONNULL_SIG = { Type.OBJECT,
-            Type.INT, Type.BOOLEAN };
+            Type.STRING, Type.BOOLEAN };
 
     /**
      * The parameter signature of the error constructor used for return
@@ -141,6 +145,9 @@ public class NonNullModifier {
      * @return a newly created JavaClass
      */
     public @NonNull JavaClass process() {
+        
+        if(jclass.isInterface())
+            return jclass;
 
         classGen = new ClassGen(jclass);
 
@@ -237,14 +244,22 @@ public class NonNullModifier {
     private void doMethod(@NonNull Method method) {
         
         int arity = method.getArgumentTypes().length;
-
-        boolean returnCheck = false;
-        boolean returnDeepCheck = false;
-        boolean paramCheck[] = new boolean[arity];
-        boolean paramDeepCheck[] = new boolean[arity];
         
-        // needed?
-//        if(classAnnotation == AnnotationKind.NONNULL) {
+        if (method.isAbstract())
+            return;
+
+        // annotations to the class.
+        boolean deepCheckByClass = requiresElementsCheck(classAnnotation);
+        boolean checkByClass = requiresCheck(classAnnotation);
+        
+        // Initialise from class annotations
+        boolean returnCheck = checkByClass;
+        boolean returnDeepCheck = deepCheckByClass;
+        boolean paramCheck[] = fillArray(arity, checkByClass);
+        boolean paramDeepCheck[] = fillArray(arity, deepCheckByClass);
+        
+//        // Initialise the arrays from class annotations
+//        if(classAnnotation == AnnotationKind.NONNULL || classAnnotation == AnnotationKind.DEEP_NONNULL) {
 //            returnCheck = true;
 //            for (int i = 0; i < paramCheck.length; i++) {
 //                paramCheck[i] = true;
@@ -258,8 +273,11 @@ public class NonNullModifier {
                 Annotations annotations = (Annotations) attr;
                 AnnotationKind nonNullReturn = getNonNullAnnotation(annotations
                         .getAnnotationEntries());
-                returnCheck = requiresCheck(nonNullReturn);
-                returnDeepCheck = requiresElementsCheck(nonNullReturn);
+                if(nonNullReturn != AnnotationKind.NONE) {
+                    // override class values only if something is set!
+                    returnCheck = requiresCheck(nonNullReturn);
+                    returnDeepCheck = requiresElementsCheck(nonNullReturn);
+                }
             }
 
             if (attr instanceof ParameterAnnotations) {
@@ -270,8 +288,10 @@ public class NonNullModifier {
                 for (int i = 0; i < entries.length; i++) {
                     AnnotationKind nonNullann = getNonNullAnnotation(entries[i]
                             .getAnnotationEntries());
-                    paramCheck[i] = requiresCheck(nonNullann);
-                    paramDeepCheck[i] = requiresElementsCheck(nonNullann);
+                    if(nonNullann != AnnotationKind.NONE) {
+                        paramCheck[i] = requiresCheck(nonNullann);
+                        paramDeepCheck[i] = requiresElementsCheck(nonNullann);
+                    }
                 }
             }
         }
@@ -282,6 +302,9 @@ public class NonNullModifier {
         }
 
         if (someCheck) {
+            
+            removeLocalVariableTypeTable(method);
+            
             MethodGen mg = new MethodGen(method, jclass.getClassName(),
                     classGen.getConstantPool());
             InstructionFactory instFact = new InstructionFactory(classGen);
@@ -289,12 +312,6 @@ public class NonNullModifier {
             if (returnCheck) {
                 addReturnCheck(mg, instFact, returnDeepCheck);
             }
-            
-//            for (int i = paramCheck.length - 1; i >= 0; i--) {
-//                if (paramCheck[i]) {
-//                    addParameterCheck(mg, instFact, i, offset, paramDeepCheck[i]);
-//                }
-//            }
             
             int offset = mg.isStatic() ? 0 : 1;
             for(int i = 0; i < paramCheck.length; i++) {
@@ -312,7 +329,7 @@ public class NonNullModifier {
                 }
             }
 
-            System.out.println(" ... changing " + method);
+            NonNullPatch.out(" ... changing " + method);
             mg.setMaxLocals();
             mg.setMaxStack();
             removeStackMap(mg);
@@ -320,6 +337,29 @@ public class NonNullModifier {
             hasBeenAltered = true;
         }
 
+    }
+
+    /**
+     * Due to a bug in BCEL, local variable type tables are not correctly parsed
+     * (BCEL cannot handle generic/variable types)
+     * 
+     * Better remove it (unfortunately along with detail debug info).
+     * 
+     * We have access to the array of attributes. We invalidate the
+     * corresponding attribute by setting it to an unknown attribute.
+     * 
+     * @param method
+     *            remove table from this method.
+     */
+    private void removeLocalVariableTypeTable(Method method) {
+        Attribute[] attributes = method.getCode().getAttributes();
+        int nameIndex = classGen.getConstantPool().addUtf8("RemovedAttribute");
+        for (int i = 0; i < attributes.length; i++) {
+            if (attributes[i] instanceof LocalVariableTypeTable) {
+                attributes[i] = new Unknown(nameIndex, 0, new byte[0], 
+                        classGen.getConstantPool().getConstantPool());
+            }
+        }
     }
 
     /**
@@ -352,9 +392,7 @@ public class NonNullModifier {
      *         annotation
      */
     private boolean requiresCheck(AnnotationKind ann) {
-        return ann == AnnotationKind.NONNULL || ann == AnnotationKind.DEEP_NONNULL ||
-               ann != AnnotationKind.NONE && (classAnnotation == AnnotationKind.NONNULL ||
-                       classAnnotation == AnnotationKind.DEEP_NONNULL);
+        return ann == AnnotationKind.NONNULL || ann == AnnotationKind.DEEP_NONNULL;
     }
     
     /**
@@ -373,8 +411,7 @@ public class NonNullModifier {
      *         annotation
      */
     private boolean requiresElementsCheck(AnnotationKind ann) {
-        return ann == AnnotationKind.DEEP_NONNULL || 
-                (classAnnotation == AnnotationKind.DEEP_NONNULL && ann == AnnotationKind.NONE);
+        return ann == AnnotationKind.DEEP_NONNULL; 
     }
 
     /**
@@ -403,15 +440,19 @@ public class NonNullModifier {
 
         if (!isObjectType(type))
             return;
-        
-        if (mg.isAbstract())
-            return;
 
+        String variableName = getNameForParamater(mg, offset);
+        
+        if(variableName == null) {
+            // no debug name found: Use arg0, arg1, arg2 instead.
+            variableName = "arg" + parameter;
+        } 
+        
         InstructionList ilist = new InstructionList();
 
         ilist.append(InstructionFactory
                 .createLoad(type, offset));
-        ilist.append(instFact.createConstant(parameter));
+        ilist.append(instFact.createConstant(variableName));
         ilist.append(instFact.createConstant(deep ? 1 : 0));
         ilist.append(instFact.createInvoke(EXCEPTION_CLASS.getClassName(),
                 "checkNonNull", Type.VOID, PARAMETER_CHECKNONNULL_SIG,
@@ -425,6 +466,27 @@ public class NonNullModifier {
             LineNumberGen first = lineNumbers[0];
             first.setInstruction(mg.getInstructionList().getStart());
         }
+    }
+
+    /**
+     * query the constant pool for the name of a method parameter
+     * 
+     * @param mg
+     *            the method generator under usage
+     * @param parameter
+     *            the number of the parameter (= local variable)
+     * @return the name of the parameter
+     */
+    private String getNameForParamater(MethodGen mg, int parameter) {
+        LocalVariableTable locVarTable = mg.getLocalVariableTable(mg.getConstantPool());
+        if(locVarTable != null) {
+            LocalVariable locVar = locVarTable.getLocalVariable(parameter, 0);
+            if(locVar != null) {
+                // System.out.println("Check for #" + locVar.getNameIndex());
+                return locVar.getName();
+            }
+        }
+        return null;
     }
 
     /**
@@ -453,8 +515,6 @@ public class NonNullModifier {
         if (!isObjectType(type))
             return;
         
-        if (mg.isAbstract())
-            return;
 
         InstructionHandle handle = mg.getInstructionList().getStart();
         while (handle != null) {
@@ -483,8 +543,7 @@ public class NonNullModifier {
      * 
      * @param mg
      */
-    private void removeStackMap(@NonNull
-    MethodGen mg) {
+    private void removeStackMap(@NonNull MethodGen mg) {
         for (Attribute attr : mg.getCodeAttributes()) {
             if (attr instanceof StackMapTable) {
                 mg.removeCodeAttribute(attr);
@@ -538,6 +597,23 @@ public class NonNullModifier {
                 return AnnotationKind.DEEP_NONNULL;
         }
         return AnnotationKind.NONE;
+    }
+
+    /**
+     * create a array filled with one value
+     * 
+     * @param size
+     *            size of the resulting array
+     * @param value
+     *            the value to set for all elements in the array
+     * @return a freshly created array
+     */
+    private static boolean[] fillArray(int size, boolean value) {
+        boolean[] result = new boolean[size];
+        for (int i = 0; i < result.length; i++) {
+            result[i] = value;
+        }
+        return result;
     }
 
 }
