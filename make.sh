@@ -6,4 +6,4 @@ cd ..
 
 javac -cp bin -d bin $(find src -name "*.java") 
 
-jar cf nonnull.jar -C bin .
+jar cmf MANIFEST.MF nonnull.jar -C bin .
