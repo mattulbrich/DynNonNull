@@ -242,22 +242,22 @@ public class NonNullModifier {
      *                the method to patch
      */
     private void doMethod(@NonNull Method method) {
-        
+
         int arity = method.getArgumentTypes().length;
-        
+
         if (method.isAbstract())
             return;
 
         // annotations to the class.
         boolean deepCheckByClass = requiresElementsCheck(classAnnotation);
         boolean checkByClass = requiresCheck(classAnnotation);
-        
+
         // Initialise from class annotations
         boolean returnCheck = checkByClass;
         boolean returnDeepCheck = deepCheckByClass;
         boolean paramCheck[] = fillArray(arity, checkByClass);
         boolean paramDeepCheck[] = fillArray(arity, deepCheckByClass);
-        
+
 //        // Initialise the arrays from class annotations
 //        if(classAnnotation == AnnotationKind.NONNULL || classAnnotation == AnnotationKind.DEEP_NONNULL) {
 //            returnCheck = true;
@@ -295,16 +295,16 @@ public class NonNullModifier {
                 }
             }
         }
-        
+
         boolean someCheck = returnCheck;
         for (int i = 0; i < paramCheck.length && !someCheck; i++) {
             someCheck |= paramCheck[i];
         }
 
         if (someCheck) {
-            
+
             removeLocalVariableTypeTable(method);
-            
+
             MethodGen mg = new MethodGen(method, jclass.getClassName(),
                     classGen.getConstantPool());
             InstructionFactory instFact = new InstructionFactory(classGen);
@@ -312,13 +312,13 @@ public class NonNullModifier {
             if (returnCheck) {
                 addReturnCheck(mg, instFact, returnDeepCheck);
             }
-            
+
             int offset = mg.isStatic() ? 0 : 1;
             for(int i = 0; i < paramCheck.length; i++) {
                 if(paramCheck[i]) {
                     addParameterCheck(mg, instFact, i, offset, paramDeepCheck[i]);
                 }
-                
+
                 // advance the pointer by the length of the argument.
                 // (long and double are 64 bit wide)
                 Type argTy = mg.getArgumentType(i);
@@ -527,7 +527,7 @@ public class NonNullModifier {
                 ilist.append(instFact.createInvoke(EXCEPTION_CLASS.getClassName(), 
                         "checkNonNull", Type.VOID, RETURN_CHECKNONNULL_SIG,
                         Constants.INVOKESTATIC));
-                
+
                 mg.getInstructionList().insert(handle, ilist);
             }
 

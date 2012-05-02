@@ -78,19 +78,19 @@ public class NonNullClassLoader extends ClassLoader {
                 }
             }
         }
-        
+
         if(cl == null) {
             cl = getParent().loadClass(class_name); 
         }
-        
+
         if(cl != null) {
             resolveClass(cl);
         }
-        
+
         classes.put(class_name, cl);
         return cl; 
     }
-    
+
     /**
 	 * The main method loads a class by name using a NonNullClassLoader and
 	 * invokes main on it.
@@ -105,19 +105,19 @@ public class NonNullClassLoader extends ClassLoader {
 	 */
     public static void main(String[] args) throws Throwable {
         NonNullClassLoader nncl = new NonNullClassLoader(ClassLoader.getSystemClassLoader());
-        
+
         if(args.length == 0) {
             throw new IllegalArgumentException("You need to provide a classname of a class with a main method.");
         }
-        
+
         String className = args[0];
-        
+
         Object args2 = new String[args.length - 1];
         System.arraycopy(args, 1, args2, 0, args.length - 1);
-        
+
         Class<?> mainClass = nncl.loadClass(className);
         Method mainMethod = mainClass.getMethod("main", String[].class);
-        
+
         try {
             mainMethod.invoke(null, args2);
         } catch (InvocationTargetException e) {

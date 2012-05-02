@@ -35,14 +35,18 @@ import org.apache.bcel.classfile.JavaClass;
 //TODO DOC
 
 /**
- * The Class NonNullPatch can be used to patch class files offline.
+ * The Class NonNullPatch can be used to patch class files and write the
+ * modified files to a directory.
+ * <p>
  * 
- * If a directory is provided as argument, all class files within it are patched.
+ * If a directory is provided as argument, all class files recursively found
+ * within it are patched.
  * 
- * A second argument is the target (either file or directory).
+ * <p>
+ * A potential second argument is the target (either file or directory).
  */
 public class NonNullPatch {
-    
+
     private static boolean verbose = Boolean.getBoolean("verbose");
 
     static void out(String msg) {
@@ -62,9 +66,8 @@ public class NonNullPatch {
         out("Patching " + from + " to " + (from.equals(to) ? "itself" : to)); 
 
         JavaClass jclass = new ClassParser(fromName).parse();
-
         NonNullModifier mod = new NonNullModifier(jclass);
-        
+
         if(mod.alreadyPatched()) {
             out("   ... already patched");
             copyFile(from, to);
@@ -84,7 +87,7 @@ public class NonNullPatch {
     private static void copyFile(File from, File to) throws IOException {
         if(from.equals(to))
             return;
-        
+
         byte[] buffer = new byte[4096];
         InputStream is = new FileInputStream(from);
         OutputStream os = new FileOutputStream(to);
@@ -128,9 +131,8 @@ public class NonNullPatch {
             target = new File(args[1]);
             break;
         default:
-            System.err
-            .println("Usage: one argument to write in place, two arguments to store away");
-        System.exit(0);
+            System.err.println("Usage: one argument to write in place, two arguments to store away");
+            System.exit(0);
         }
 
         if(from.isDirectory()) {
@@ -140,7 +142,4 @@ public class NonNullPatch {
         }
 
     }
-
-
-
 }

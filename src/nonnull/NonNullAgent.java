@@ -19,14 +19,13 @@ public class NonNullAgent {
                 try
                 {
                     ClassParser parser = new ClassParser(
-                            new ByteArrayInputStream(data), className + ".java");
+                            new ByteArrayInputStream(data), className + ".class");
                     JavaClass jclass = parser.parse();
                     NonNullModifier modifier = new NonNullModifier(jclass);
                     jclass = modifier.process();
                     byte[] byteArray = jclass.getBytes();
                     return byteArray;
-                }
-                catch (Exception e) {
+                } catch (Exception e) {
                     e.printStackTrace();
                     return null;
                 }
