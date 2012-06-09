@@ -1,9 +1,10 @@
-rm -rf bin
-mkdir bin
-cd bin
+rm -rf classes
+mkdir classes
+cd classes
 jar xf ../bcel.jar
 cd ..
 
-javac -cp bin -d bin $(find src -name "*.java") 
+javac -cp classes -d bin $(find src -name "*.java") 
 
-jar cmf MANIFEST.MF nonnull.jar -C bin .
+jar cmf MANIFEST.MF nonnull.jar -C classes .
+rm -rf classes

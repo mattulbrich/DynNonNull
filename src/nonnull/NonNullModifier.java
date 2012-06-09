@@ -58,17 +58,17 @@ public class NonNullModifier {
      * The type string describing the classname of the nullable annotation
      */
     private static final String NULLABLE_TYPEREF = "Lnonnull/Nullable;";
-    
+
     /**
      * The type string describing the classname of the deep nonnull annotation
      */
     private static final String DEEP_NON_NULL_TYPEREF = "Lnonnull/DeepNonNull;";
-    
+
     /**
      * The type string describing the classname of the patched annotation
      */
     private static final ObjectType PATCHED_CLASS = new ObjectType("nonnull/NonNullPatched");
-    
+
     /**
      * The type string describing the classname of the patched annotation
      */
@@ -85,7 +85,7 @@ public class NonNullModifier {
      * failures.
      */
     private static final Type[] PARAMETER_CHECKNONNULL_SIG = { Type.OBJECT,
-            Type.STRING, Type.BOOLEAN };
+        Type.STRING, Type.BOOLEAN };
 
     /**
      * The parameter signature of the error constructor used for return
@@ -126,6 +126,7 @@ public class NonNullModifier {
      */
     private AnnotationKind classAnnotation;
 
+
     /**
      * Instantiates a new non null modifier.
      * 
@@ -145,6 +146,7 @@ public class NonNullModifier {
      * @return a newly created JavaClass
      */
     public @NonNull JavaClass process() {
+
         
         if(jclass.isInterface())
             return jclass;
@@ -152,7 +154,7 @@ public class NonNullModifier {
         classGen = new ClassGen(jclass);
 
         classAnnotation = getNonNullAnnotation(jclass.getAnnotationEntries());
-        
+
         Method methods[] = jclass.getMethods();
 
         for (Method method : methods) {
@@ -164,7 +166,7 @@ public class NonNullModifier {
                 e.printStackTrace();
             }
         }
-        
+
         if(hasBeenAltered()) {
             makePatchAnnotation();
         }
@@ -190,7 +192,7 @@ public class NonNullModifier {
      * @return true iff this class has already been patched.
      */
     public boolean alreadyPatched() {
-        
+
         AnnotationEntry[] annotations = jclass.getAnnotationEntries();
         for (AnnotationEntry annotationEntry : annotations) {
             if(PATCHED_TYPEREF.equals(annotationEntry.getAnnotationType()))
@@ -204,15 +206,15 @@ public class NonNullModifier {
      */
     public static void main(String[] args) throws ClassFormatException,
             Exception {
-        
+
         String arg = args.length == 0 ? "bin/nonnull/NonNullPatch.class" : args[0];
-        
+
         JavaClass jclass = new ClassParser(arg).parse();
 
         NonNullModifier main = new NonNullModifier(jclass);
 
         System.out.println(System.getProperties());
-        
+
         if(main.alreadyPatched())
             System.out.println("already patched");
 
@@ -242,16 +244,13 @@ public class NonNullModifier {
      *                the method to patch
      */
     private void doMethod(@NonNull Method method) {
-
         int arity = method.getArgumentTypes().length;
 
         if (method.isAbstract())
             return;
-
         // annotations to the class.
         boolean deepCheckByClass = requiresElementsCheck(classAnnotation);
         boolean checkByClass = requiresCheck(classAnnotation);
-
         // Initialise from class annotations
         boolean returnCheck = checkByClass;
         boolean returnDeepCheck = deepCheckByClass;
@@ -394,7 +393,7 @@ public class NonNullModifier {
     private boolean requiresCheck(AnnotationKind ann) {
         return ann == AnnotationKind.NONNULL || ann == AnnotationKind.DEEP_NONNULL;
     }
-    
+
     /**
      * given the annotation state of an element check whether an
      * array-per-element check should be inserted.
@@ -442,12 +441,12 @@ public class NonNullModifier {
             return;
 
         String variableName = getNameForParamater(mg, offset);
-        
+
         if(variableName == null) {
             // no debug name found: Use arg0, arg1, arg2 instead.
             variableName = "arg" + parameter;
         } 
-        
+
         InstructionList ilist = new InstructionList();
 
         ilist.append(InstructionFactory
@@ -514,7 +513,7 @@ public class NonNullModifier {
 
         if (!isObjectType(type))
             return;
-        
+
 
         InstructionHandle handle = mg.getInstructionList().getStart();
         while (handle != null) {
