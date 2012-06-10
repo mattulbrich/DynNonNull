@@ -2,8 +2,11 @@
 <classpath>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="src" path="testCases"/>
+	<classpathentry kind="src" path="weaver"/>
+	<classpathentry kind="src" path="oldsrc"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="lib" path="bcel.jar" sourcepath="/home/mattias/local/java/bcel-trunk/src/main/java"/>
+	<classpathentry kind="lib" path="asm-4.0_RC2/lib/asm-4.0_RC2.jar" sourcepath="asm-4.0_RC2/src.zip"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.junit.JUNIT_CONTAINER/3"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
