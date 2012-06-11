@@ -35,7 +35,7 @@ public class NonNullMethodVisitor extends MethodVisitor implements Opcodes {
     @Override
     public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
         if(desc.equals(NonNullClassVisitor.NOCHECKS_ANN)) {
-            NonNullAgent.debug("no nullness checks for " + className + "." + methodName);
+            NonNullAgent.debug("no nullness checks for %s.%s", className, methodName);
             noChecks = true;
         }
         return super.visitAnnotation(desc, visible);
@@ -44,7 +44,6 @@ public class NonNullMethodVisitor extends MethodVisitor implements Opcodes {
     @Override
     public void visitCode() {
         super.visitCode();
-
         if(noChecks) {
             return;
         }

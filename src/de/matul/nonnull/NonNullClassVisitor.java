@@ -39,8 +39,8 @@ class NonNullClassVisitor extends ClassVisitor implements Opcodes {
         final String signature,
         final String[] exceptions)
     {
+        NonNullAgent.debug("visitMethod for %s.%s", className, name);
         MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
-
         if (noChecks) {
             return mv;
         }

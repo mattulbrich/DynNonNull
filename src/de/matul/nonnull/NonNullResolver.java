@@ -7,7 +7,6 @@ import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URL;
-import java.util.Arrays;
 import java.util.Set;
 
 import org.objectweb.asm.Type;
@@ -97,8 +96,8 @@ public class NonNullResolver {
             return false;
         }
 
-        NonNullAgent.debug("methodName: "+ methodName);
-        NonNullAgent.debug("Method: " + method);
+        NonNullAgent.debug("methodName: %s", methodName);
+        NonNullAgent.debug("Method: %s", method);
 
         AnnotationType methAnn = getMethodAnnotation(method, param);
         if(methAnn == AnnotationType.NON_NULL || methAnn == AnnotationType.DEEP_NON_NULL) {
@@ -134,7 +133,7 @@ public class NonNullResolver {
             Annotation[] annotations = method.getParameterAnnotations()[param];
             if(annotations != null) {
                 for (Annotation ann : annotations) {
-                    NonNullAgent.debug("Ann: " +ann);
+                    NonNullAgent.debug("Ann: %s", ann);
                     if(NON_NULL_ANNOTATIONS.contains(ann.annotationType().getName())) {
                         return AnnotationType.NON_NULL;
                     }
@@ -152,7 +151,7 @@ public class NonNullResolver {
 
     private AnnotationType getAnnotation(AnnotatedElement annElem) {
         Annotation[] annotations = annElem.getAnnotations();
-        NonNullAgent.debug("Annotations for " + annElem + ": " + Arrays.toString(annotations));
+        NonNullAgent.debug("Annotations for %s: %s", annElem, annotations);
         if(annotations != null) {
             for (Annotation ann : annotations) {
                 NonNullAgent.debug("Ann: " +ann);

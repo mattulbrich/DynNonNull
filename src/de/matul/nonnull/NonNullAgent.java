@@ -24,7 +24,19 @@ public class NonNullAgent {
 
     static void debug(String msg) {
         if(VERBOSE) {
-            System.err.println("[NN] " +msg);
+            System.err.println("[NN] " + msg);
+        }
+    }
+
+    static void debug(String msg, Object p1) {
+        if(VERBOSE) {
+            System.err.printf("[NN] " + msg + "%n", p1);
+        }
+    }
+
+    static void debug(String msg, Object p1, Object p2) {
+        if(VERBOSE) {
+            System.err.printf("[NN] " + msg + "%n", p1, p2);
         }
     }
 
@@ -46,13 +58,10 @@ class NonNullTransformer implements ClassFileTransformer {
                 return null;
             }
 
-            NonNullAgent.debug("Instrumenting class " + className);
-            NonNullAgent.debug("Existing class : " + cl);
-            if("de/uka/iti/pseudo/gui/actions/auto/ParallelAutoProofWorker".equals(className)){
-                System.err.println("GOT IT!");
-            }
-            ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES
-                    | ClassWriter.COMPUTE_MAXS );
+            NonNullAgent.debug("Instrumenting class: %s", className);
+            NonNullAgent.debug("Existing class: %s", cl);
+
+            ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
             NonNullClassVisitor inspector = new NonNullClassVisitor(writer);
             ClassReader reader = new ClassReader(data);
             reader.accept(inspector, 0);
@@ -70,7 +79,7 @@ class NonNullTransformer implements ClassFileTransformer {
 
             if(inspector.noChecks) {
                 NonNullAgent.debug("Leaving data untouched for " + className);
-                return data;
+                return null;
             }
 
             return result;

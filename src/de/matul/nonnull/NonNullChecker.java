@@ -1,7 +1,5 @@
 package de.matul.nonnull;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import nonnull.NoNullnessChecks;
@@ -36,14 +34,14 @@ public final class NonNullChecker {
 
     private static final NonNullResolver resolver = new NonNullResolver();
     private static AtomicInteger number = new AtomicInteger();
-    private static Map<Integer, Object> checkerMap =
-            new ConcurrentHashMap<Integer, Object>();
+    private static DynamicArray<Object> checkerMap =
+            new DynamicArray<Object>();
 
     static int registerArgumentCheck(String className, String methodName, String methDesc,
             int paramNumber) {
         int result = getFreshIndex();
         checkerMap.put(result, new Entry(className, methodName, methDesc, paramNumber));
-        NonNullAgent.debug("Registering entry no. " + result);
+        NonNullAgent.debug("Registering entry no. %d", result);
         return result;
     }
 
@@ -86,9 +84,17 @@ public final class NonNullChecker {
         boolean check = resolver.shouldCheckMethod(entry.classDesc, entry.name,
                 entry.methodDesc, entry.paramNumber);
         if(check) {
-            String errMsg = "null result value in non-null method " +
-                    entry.classDesc.replace('/', '.') + "." + entry.name +
-                    Util.getMethodSignature(entry.methodDesc);
+            String errMsg;
+            if(entry.paramNumber == -1) {
+                errMsg = "null result value in non-null method " +
+                        entry.classDesc.replace('/', '.') + "." + entry.name +
+                        Util.getMethodSignature(entry.methodDesc);
+            } else {
+                errMsg = "null value in non-null parameter number "
+                        + (entry.paramNumber+1) +
+                        " in method " + entry.classDesc.replace('/', '.') + "."
+                        + entry.name + Util.getMethodSignature(entry.methodDesc);
+            }
 
             checkerMap.put(index, errMsg);
             throw new NonNullError(errMsg);
