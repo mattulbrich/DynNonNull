@@ -4,10 +4,12 @@
 
 	<target name="init">
 		<mkdir dir="classes" />
+		<mkdir dir="classes-test" />
 	</target>
 
 	<target name="clean">
 		<delete dir="classes" />
+		<delete dir="classes-test" />
 	</target>
 
 	<target name="build" depends="init">
@@ -32,6 +34,21 @@
 		            value="de.matul.nonnull.NonNullAgent"/>
 			</manifest>
 		</jar>
+	</target>
+
+	<target name="build-test" depends="init">
+	    <javac debug="true" destdir="classes-test">
+		<src path="testCases" />
+		<classpath location="${asm}"/>
+		<classpath path="classes"/>
+	    </javac>
+	</target>
+
+	<target name="test" depends="jar, build-test">
+	    <java fork="true" classname="test.Testclass">	
+		<jvmarg value="-javaagent:nonnull.jar=test"/>
+		<classpath path="classes-test"/>
+	    </java>
 	</target>
 
 </project>

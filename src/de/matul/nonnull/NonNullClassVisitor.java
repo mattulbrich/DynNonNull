@@ -32,7 +32,8 @@ class NonNullClassVisitor extends ClassVisitor implements Opcodes {
         return super.visitAnnotation(desc, visible);
     }
 
-    @Override public MethodVisitor visitMethod(
+    @Override 
+    public MethodVisitor visitMethod(
         final int access,
         final String name,
         final String desc,

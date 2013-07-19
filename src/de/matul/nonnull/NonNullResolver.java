@@ -7,9 +7,14 @@ import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URL;
+import java.util.Arrays;
 import java.util.Set;
 
+import nonnull.NonNull;
+
 import org.objectweb.asm.Type;
+
+import de.matul.nonnull.NonNullResolver.AnnotationType;
 
 
 public class NonNullResolver {
@@ -42,12 +47,27 @@ public class NonNullResolver {
             }
             DEEP_NON_NULL_ANNOTATIONS = Util.readStringSet(url.openStream());
 
+            String prop = System.getProperty("de.matul.nonnull.annotation.nonnull");
+            if(prop != null) {
+                NON_NULL_ANNOTATIONS.add(prop);
+            }
+
+            prop = System.getProperty("de.matul.nonnull.annotation.nullable");
+            if(prop != null) {
+                NULLABLE_ANNOTATIONS.add(prop);
+            }
+
+            prop = System.getProperty("de.matul.nonnull.annotation.deepnonnull");
+            if(prop != null) {
+                DEEP_NON_NULL_ANNOTATIONS.add(prop);
+            }
+
         } catch (IOException e) {
             throw new NonNullError("Error while initialising NonNullResolver", e);
         }
     }
 
-    public boolean shouldCheckMethod(String classDesc, String methodName, String methodDesc, int param) {
+    public AnnotationType shouldCheckMethod(String classDesc, String methodName, String methodDesc, int param) {
         try {
             String className = classDesc.replace('/', '.');
             Class<?> clazz = Class.forName(className);
@@ -57,10 +77,12 @@ public class NonNullResolver {
         }
     }
 
-    public boolean shouldCheckField(String classDesc, String fieldName) {
+    public AnnotationType shouldCheckField(String classDesc, String fieldName) {
         try {
             String className = classDesc.replace('/', '.');
             Class<?> clazz = Class.forName(className);
+            
+            AnnotationType classAnn = getAnnotation(clazz);
 
             Field field = null;
             while(field == null && clazz != null) {
@@ -80,53 +102,64 @@ public class NonNullResolver {
             }
 
             AnnotationType ann = getAnnotation(field);
-            return ann == AnnotationType.NON_NULL || ann == AnnotationType.DEEP_NON_NULL;
+
+            if(ann == AnnotationType.NONE) {
+                ann = classAnn;
+            }
+
+            return ann;
+
         } catch (Throwable e) {
             throw new NonNullError("Internal error in non-null checking for " +
                     classDesc + "." + fieldName , e);
         }
     }
 
-    // TODO Implement DeepNonNull for method params and returns as well!
-    private boolean shouldCheckMethodResult(Class<?> clazz, String methodName,
+    private AnnotationType shouldCheckMethodResult(Class<?> clazz, String methodName,
             String methodDesc, int param) throws ClassNotFoundException {
+        
         Method method = findMethod(methodName, methodDesc, clazz);
 
         if(method == null) {
-            return false;
+            return AnnotationType.NONE;
         }
 
         NonNullAgent.debug("methodName: %s", methodName);
         NonNullAgent.debug("Method: %s", method);
-
+        
         AnnotationType methAnn = getMethodAnnotation(method, param);
-        if(methAnn == AnnotationType.NON_NULL || methAnn == AnnotationType.DEEP_NON_NULL) {
-            return true;
+        if(methAnn != AnnotationType.NONE) {
+            return methAnn;
         }
 
         NonNullAgent.debug("methAnn: " + methAnn);
 
         AnnotationType classAnn = getAnnotation(clazz);
-        if(classAnn == AnnotationType.NON_NULL && methAnn != AnnotationType.NULLABLE) {
-            return true;
+        if(classAnn == AnnotationType.NONE) {
+            return classAnn;
         }
 
         Class<?> superclass = clazz.getSuperclass();
-        if(superclass != null &&
-                shouldCheckMethodResult(superclass, methodName, methodDesc, param)) {
-            return true;
-        }
-
-        for (Class<?> intf : clazz.getInterfaces()) {
-            if(shouldCheckMethodResult(intf, methodName, methodDesc, param)) {
-                return true;
+        if(superclass != null) {
+            AnnotationType superAnn = 
+                    shouldCheckMethodResult(superclass, methodName, methodDesc, param);
+            if(superAnn != AnnotationType.NONE) {
+                return superAnn;
             }
         }
 
-        return false;
+        for (Class<?> intf : clazz.getInterfaces()) {
+            AnnotationType superAnn = 
+                    shouldCheckMethodResult(intf, methodName, methodDesc, param);
+            if(superAnn != AnnotationType.NONE) {
+                return superAnn;
+            }
+        }
+
+        return AnnotationType.NONE;
     }
 
-    private AnnotationType getMethodAnnotation(Method method, int param) {
+    private @NonNull AnnotationType getMethodAnnotation(Method method, int param) {
         if(param == -1) {
             return getAnnotation(method);
         } else {
@@ -149,12 +182,12 @@ public class NonNullResolver {
         }
     }
 
-    private AnnotationType getAnnotation(AnnotatedElement annElem) {
+    private @NonNull AnnotationType getAnnotation(AnnotatedElement annElem) {
         Annotation[] annotations = annElem.getAnnotations();
-        NonNullAgent.debug("Annotations for %s: %s", annElem, annotations);
+        NonNullAgent.debug("Annotations for %s: %s", annElem, Arrays.asList(annotations));
         if(annotations != null) {
             for (Annotation ann : annotations) {
-                NonNullAgent.debug("Ann: " +ann);
+                NonNullAgent.debug("Ann: " + ann);
                 if(NON_NULL_ANNOTATIONS.contains(ann.annotationType().getName())) {
                     return AnnotationType.NON_NULL;
                 }
