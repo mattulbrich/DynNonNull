@@ -1,8 +1,8 @@
 /*
  * NonNull Runtime Checking for Methods
- * 
+ *
  * 2009 by Mattias Ulbrich
- * 
+ *
  * published under GPL.
  */
 package de.matul.nonnull;
@@ -22,7 +22,7 @@ import org.objectweb.asm.ClassWriter;
  * The agent which is the entry point for the java-agent system.
  */
 public class NonNullAgent {
-    
+
     /**
      * The system can be set to verbose if the system property
      * {@code de.matul.nonnull.debug} is set to "true" for instance on the
@@ -41,7 +41,7 @@ public class NonNullAgent {
     /**
      * This is the entry point for the instrumentation. It adds an transformer
      * to the instrumentation.
-     * 
+     *
      * @param arg
      *            the argument passed to the agent on the commandline
      * @param instr
@@ -50,13 +50,13 @@ public class NonNullAgent {
     public static void premain(String arg, Instrumentation instr) {
         if(arg == null) {
              throw new IllegalArgumentException("You need to provide a class prefix");
-        } 
+        }
         instr.addTransformer(new NonNullTransformer(arg));
     }
 
     /**
      * Print a debug message, if verbose mode is set.
-     * 
+     *
      * @param msg
      *            the message to print
      */
@@ -68,7 +68,7 @@ public class NonNullAgent {
 
     /**
      * Print a debug message with arguments.
-     * 
+     *
      * @param msg
      *            the message to print, formatted in
      *            {@link String#format(String, Object...)} style.
@@ -94,7 +94,7 @@ class NonNullTransformer implements ClassFileTransformer {
 
     /**
      * Instantiates a new transformer.
-     * 
+     *
      * @param arg
      *            the package/class prefix to be considered
      */
@@ -111,6 +111,11 @@ class NonNullTransformer implements ClassFileTransformer {
     public byte[] transform(ClassLoader loader, String className,
             Class<?> cl, ProtectionDomain pd, byte[] data) {
         try {
+            // anonymously created classes have no class name, bail out
+            if(className == null) {
+                return null;
+            }
+
             if(!className.startsWith(prefix)) {
                 return null;
             }
