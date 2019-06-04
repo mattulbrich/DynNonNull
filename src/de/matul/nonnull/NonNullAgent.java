@@ -146,6 +146,7 @@ class NonNullTransformer implements ClassFileTransformer {
 
             return result;
         } catch (Throwable e) {
+            System.err.println("Error while transforming " + className);
             e.printStackTrace();
             return null;
         }

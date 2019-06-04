@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <project basedir="." default="build" name="nonnull">
-	<property name="asm" value="asm-4.0_RC2/asm.jar"/>
+		<property name="asm" value="asm-5.2/lib/asm-5.2.jar"/>
 
 	<target name="init">
 		<mkdir dir="classes" />

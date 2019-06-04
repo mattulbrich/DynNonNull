@@ -4,7 +4,7 @@
 	<classpathentry kind="src" path="testCases"/>
 	<classpathentry kind="src" path="weaver"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-	<classpathentry kind="lib" path="asm-4.0_RC2/asm.jar" sourcepath="asm-4.0_RC2/src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.junit.JUNIT_CONTAINER/3"/>
+	<classpathentry kind="lib" path="asm-5.2/lib/asm-5.2.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
