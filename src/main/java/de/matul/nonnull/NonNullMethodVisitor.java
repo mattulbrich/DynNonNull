@@ -24,7 +24,7 @@ public class NonNullMethodVisitor extends MethodVisitor implements Opcodes {
     private final String className;
 
     public NonNullMethodVisitor(MethodVisitor mv, boolean isStatic, String className, String name, String desc) {
-        super(Opcodes.ASM4, mv);
+        super(Opcodes.ASM7, mv);
         this.className = className;
         this.methodName = name;
         this.isStatic = isStatic;

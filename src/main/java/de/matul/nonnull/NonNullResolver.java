@@ -135,7 +135,7 @@ public class NonNullResolver {
         NonNullAgent.debug("methAnn: " + methAnn);
 
         AnnotationType classAnn = getAnnotation(clazz);
-        if(classAnn == AnnotationType.NONE) {
+        if(classAnn != AnnotationType.NONE) {
             return classAnn;
         }
 
