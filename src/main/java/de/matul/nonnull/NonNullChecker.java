@@ -42,7 +42,7 @@ public final class NonNullChecker {
         }
 
         @Override public String toString() {
-            return classDesc + "." + name + methodDesc + "/" + paramNumber;
+            return classDesc + "." + name + "#" + methodDesc + "/" + paramNumber;
         }
     }
 
@@ -84,7 +84,9 @@ public final class NonNullChecker {
 
     static int registerPutFieldCheck(String className, String fieldName) {
         int result = getFreshIndex();
-        checkerMap.put(result, new Entry(className, fieldName));
+        Entry entry = new Entry(className, fieldName);
+        checkerMap.put(result, entry);
+        NonNullAgent.debug("Registering entry no. %d: %s", result, entry);
         return result;
     }
 
@@ -154,6 +156,8 @@ public final class NonNullChecker {
 
     public static void checkFieldNonNull(Object value, int index) {
         Entry entry = checkerMap.get(index);
+        NonNullAgent.debug("Checking field %s", entry);
+        NonNullAgent.debugWhere(2);
 
         if(entry == null) {
             // no check is needed ... fine
@@ -164,6 +168,7 @@ public final class NonNullChecker {
         if(check == null) {
             // no check has been determined yet.
             check = resolver.shouldCheckField(entry.classDesc, entry.name);
+            NonNullAgent.debug("Computed check for %s: %s", entry, check);
             if(check != AnnotationType.NON_NULL && check != AnnotationType.DEEP_NON_NULL) {
                 checkerMap.remove(index);
                 return;

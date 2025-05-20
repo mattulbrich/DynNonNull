@@ -1,8 +1,5 @@
 package test;
 
-import nonnull.NonNull;
-import de.matul.nonnull.NonNullError;
-
 class Testclass extends TestSuperclass implements TestInterface {
 
     @Override

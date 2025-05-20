@@ -7,7 +7,9 @@ import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 
 import nonnull.NonNull;
@@ -104,6 +106,10 @@ public class NonNullResolver {
             AnnotationType ann = getAnnotation(field);
 
             if(ann == AnnotationType.NONE) {
+                ann = getAnnotation(field.getAnnotatedType());
+            }
+
+            if(ann == AnnotationType.NONE) {
                 ann = classAnn;
             }
 
@@ -156,26 +162,33 @@ public class NonNullResolver {
             }
         }
 
-        return AnnotationType.NONE;
+        // finally check the package for annotations
+        AnnotationType packAnn = getAnnotation(clazz.getPackage());
+
+        return packAnn;
     }
 
     private @NonNull AnnotationType getMethodAnnotation(Method method, int param) {
         if(param == -1) {
-            return getAnnotation(method);
+            AnnotationType ann = getAnnotation(method);
+            if(ann == AnnotationType.NONE) {
+                ann = getAnnotation(method.getAnnotatedReturnType());
+            }
+            return ann;
         } else {
-            Annotation[] annotations = method.getParameterAnnotations()[param];
-            if(annotations != null) {
-                for (Annotation ann : annotations) {
-                    NonNullAgent.debug("Ann: %s", ann);
-                    if(NON_NULL_ANNOTATIONS.contains(ann.annotationType().getName())) {
-                        return AnnotationType.NON_NULL;
-                    }
-                    if(NULLABLE_ANNOTATIONS.contains(ann.annotationType().getName())) {
-                        return AnnotationType.NULLABLE;
-                    }
-                    if(DEEP_NON_NULL_ANNOTATIONS.contains(ann.annotationType().getName())) {
-                        return AnnotationType.DEEP_NON_NULL;
-                    }
+            List<Annotation> annotations = new ArrayList<>();
+            annotations.addAll(Arrays.asList(method.getParameterAnnotations()[param]));
+            annotations.addAll(Arrays.asList(method.getAnnotatedParameterTypes()[param].getAnnotations()));
+            for (Annotation ann : annotations) {
+                NonNullAgent.debug("Ann: %s", ann);
+                if(NON_NULL_ANNOTATIONS.contains(ann.annotationType().getName())) {
+                    return AnnotationType.NON_NULL;
+                }
+                if(NULLABLE_ANNOTATIONS.contains(ann.annotationType().getName())) {
+                    return AnnotationType.NULLABLE;
+                }
+                if(DEEP_NON_NULL_ANNOTATIONS.contains(ann.annotationType().getName())) {
+                    return AnnotationType.DEEP_NON_NULL;
                 }
             }
             return AnnotationType.NONE;

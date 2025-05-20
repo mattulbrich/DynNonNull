@@ -14,7 +14,7 @@ class NonNullClassVisitor extends ClassVisitor implements Opcodes {
     private String className;
 
     public NonNullClassVisitor(ClassWriter writer) {
-        super(Opcodes.ASM7, writer);
+        super(Opcodes.ASM9, writer);
     }
 
     @Override

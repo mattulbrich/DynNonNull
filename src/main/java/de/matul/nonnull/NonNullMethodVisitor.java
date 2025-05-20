@@ -24,7 +24,7 @@ public class NonNullMethodVisitor extends MethodVisitor implements Opcodes {
     private final String className;
 
     public NonNullMethodVisitor(MethodVisitor mv, boolean isStatic, String className, String name, String desc) {
-        super(Opcodes.ASM7, mv);
+        super(Opcodes.ASM9, mv);
         this.className = className;
         this.methodName = name;
         this.isStatic = isStatic;
@@ -56,7 +56,7 @@ public class NonNullMethodVisitor extends MethodVisitor implements Opcodes {
                 int id = NonNullChecker.registerArgumentCheck(className, methodName, methDesc, i);
                 mv.visitLdcInsn(id);
                 mv.visitMethodInsn(INVOKESTATIC, NON_NULL_CHECKER_CLASSNAME,
-                        CHECK_METHOD_PARAMETER_METHODNAME, CHECK_SIGNATURE);
+                        CHECK_METHOD_PARAMETER_METHODNAME, CHECK_SIGNATURE, false);
             }
             j += argTypes[i].getSize();
         }

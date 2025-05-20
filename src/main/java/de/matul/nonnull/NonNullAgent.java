@@ -28,7 +28,7 @@ public class NonNullAgent {
      * {@code de.matul.nonnull.debug} is set to "true" for instance on the
      * invocation of java.
      */
-    public static final boolean VERBOSE = Boolean.getBoolean("de.matul.nonnull.debug");
+    public static final boolean VERBOSE = true; // Boolean.getBoolean("de.matul.nonnull.debug");
 
     /**
      * The debug output directory. If transformed class files are to be saved,
@@ -39,7 +39,7 @@ public class NonNullAgent {
             System.getProperty("de.matul.nonnull.debugdir", "/tmp/nonnullDebug");
 
     /**
-     * This is the entry point for the instrumentation. It adds an transformer
+     * This is the entry point for the instrumentation. It adds a transformer
      * to the instrumentation.
      *
      * @param arg
@@ -80,6 +80,13 @@ public class NonNullAgent {
             System.err.printf("[NN] " + msg + "%n", args);
         }
     }
+
+    public static void debugWhere(int levelUp) {
+        if(VERBOSE) {
+            StackTraceElement[] stackTrace = new Throwable().getStackTrace();
+            System.err.println("  at: " + stackTrace[levelUp]);
+        }
+    }
 }
 
 /**
@@ -116,7 +123,7 @@ class NonNullTransformer implements ClassFileTransformer {
                 return null;
             }
 
-            if(!className.startsWith(prefix)) {
+            if(!prefix.equals("ALL") && !className.startsWith(prefix)) {
                 return null;
             }
 

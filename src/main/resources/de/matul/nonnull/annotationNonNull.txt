@@ -1,2 +1,4 @@
 nonnull.NonNull
 javax.annotation.NonNull
+org.jspecify.annotations.NonNull
+org.jspecify.annotations.NullMarked
