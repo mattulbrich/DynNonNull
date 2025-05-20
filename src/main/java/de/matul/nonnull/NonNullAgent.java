@@ -27,8 +27,10 @@ public class NonNullAgent {
      * The system can be set to verbose if the system property
      * {@code de.matul.nonnull.debug} is set to "true" for instance on the
      * invocation of java.
+     *
+     * Can also be set using the java agent argument "VERBOSE" when starting
      */
-    public static final boolean VERBOSE = true; // Boolean.getBoolean("de.matul.nonnull.debug");
+    public static boolean VERBOSE = Boolean.getBoolean("de.matul.nonnull.debug");
 
     /**
      * The debug output directory. If transformed class files are to be saved,
@@ -52,7 +54,11 @@ public class NonNullAgent {
              throw new IllegalArgumentException("You need to provide a class prefix");
         }
         for(String prefix : arg.split(" *, *")) {
-            instr.addTransformer(new NonNullTransformer(prefix));
+            if(prefix.equals("VERBOSE")) {
+                VERBOSE = true;
+            } else {
+                instr.addTransformer(new NonNullTransformer(prefix));
+            }
         }
     }
 
