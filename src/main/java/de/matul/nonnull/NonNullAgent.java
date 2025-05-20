@@ -51,7 +51,9 @@ public class NonNullAgent {
         if(arg == null) {
              throw new IllegalArgumentException("You need to provide a class prefix");
         }
-        instr.addTransformer(new NonNullTransformer(arg));
+        for(String prefix : arg.split(" *, *")) {
+            instr.addTransformer(new NonNullTransformer(prefix));
+        }
     }
 
     /**
